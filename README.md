@@ -141,7 +141,7 @@ $$J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}} - V_{l
 - Dynamic assignment hoặc time-of-day OD
 - So sánh với dữ liệu di động độ phân giải cao hơn
   
-# 📐 Mô hình toán học cho OD Flow Generation
+# 📐 Mô hình toán học cho OD Flow Generation (dựa trên điểm quan sát)
 
 ## 1. Ký hiệu và biến số
 
@@ -154,15 +154,15 @@ $$J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}} - V_{l
 - **OD demand**: \(q_{od}^c\) = số chuyến từ \(o\) đến \(d\) của loại phương tiện \(c\).
 - **OD ma trận**: \(\mathbf{OD} = \{q_{od}^c\}_{(o,d)\in \mathcal{P}, c\in \mathcal{C}}\).
 - **OD prior**: \(\mathbf{OD}_{\text{prior}}\) từ gravity model + Facebook Movement + POI.
-- **Mạng lưới giao thông**: \(\mathcal{L}\) = tập hợp các links.
-- **Flow quan trắc**: \(V_l^{\text{obs}}\), **Speed quan trắc**: \(S_l^{\text{obs}}\).
-- **Flow mô phỏng**: \(V_l^{\text{sim}}(\mathbf{OD})\), **Speed mô phỏng**: \(S_l^{\text{sim}}(\mathbf{OD})\).
+- **Tập hợp điểm quan sát**: \(\mathcal{X}\) = tập hợp các vị trí VDS (detectors).
+- **Flow quan trắc tại điểm**: \(V_x^{\text{obs}}\), **Speed quan trắc tại điểm**: \(S_x^{\text{obs}}\).
+- **Flow mô phỏng tại điểm**: \(V_x^{\text{sim}}(\mathbf{OD})\), **Speed mô phỏng tại điểm**: \(S_x^{\text{sim}}(\mathbf{OD})\).
 
 ---
 
 ## 2. Hàm chi phí liên kết (Link Cost Function)
 
-Sử dụng dạng BPR:
+Sử dụng dạng BPR cho từng loại phương tiện:
 
 
 
@@ -175,8 +175,8 @@ t_l^c = t_l^{0,c} \left[ 1 + \alpha_l \left( \frac{V_l^c}{C_l^c} \right)^{\beta_
 - \(t_l^c\): travel time trên link \(l\) cho phương tiện \(c\).
 - \(t_l^{0,c} = \frac{L_l}{S_l^{\text{free},c}}\): free-flow travel time.
 - \(V_l^c\): lưu lượng trên link \(l\) của phương tiện \(c\).
-- \(C_l^c\): capacity của link \(l\) cho phương tiện \(c\).
-- \(\alpha_l, \beta_l\): tham số cần calibrate từ dữ liệu flow + speed.
+- \(C_l^c\): capacity của link \(l\).
+- \(\alpha_l, \beta_l\): tham số calibrate từ dữ liệu flow + speed.
 
 ---
 
@@ -187,7 +187,7 @@ Mỗi loại phương tiện \(c\) tuân theo nguyên lý cân bằng người d
 
 
 \[
-\text{Tìm } \{f_p^c\} \quad \text{sao cho} \quad \sum_{p \in \mathcal{P}_{od}} f_p^c = q_{od}^c, \quad \forall (o,d), c
+\sum_{p \in \mathcal{P}_{od}} f_p^c = q_{od}^c, \quad \forall (o,d), c
 \]
 
 
@@ -206,14 +206,16 @@ f_p^c > 0 \implies \text{cost}(p) = \min_{p' \in \mathcal{P}_{od}} \text{cost}(p
 
 ---
 
-## 4. Bài toán bilevel OD estimation
+## 4. Bài toán bilevel OD estimation (dựa trên điểm quan sát)
 
 ### Upper level (ước lượng OD):
 
 
 
 \[
-\min_{\mathbf{OD}} J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}}(\mathbf{OD}) - V_{l}^{\text{obs}} \right)^2 + w_2 \sum_{l \in \mathcal{L}} \left( S_{l}^{\text{sim}}(\mathbf{OD}) - S_{l}^{\text{obs}} \right)^2 + \lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2
+\min_{\mathbf{OD}} J(\mathbf{OD}) = w_1 \sum_{x \in \mathcal{X}} \left( V_{x}^{\text{sim}}(\mathbf{OD}) - V_{x}^{\text{obs}} \right)^2 
++ w_2 \sum_{x \in \mathcal{X}} \left( S_{x}^{\text{sim}}(\mathbf{OD}) - S_{x}^{\text{obs}} \right)^2 
++ \lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2
 \]
 
 
@@ -230,7 +232,7 @@ f_p^c > 0 \implies \text{cost}(p) = \min_{p' \in \mathcal{P}_{od}} \text{cost}(p
 
 ---
 
-## 5. Thuật toán giải (SPSA – Simultaneous Perturbation Stochastic Approximation)
+## 5. Thuật toán giải (SPSA)
 
 - Khởi tạo: \(\mathbf{OD}^{(0)} = \mathbf{OD}_{\text{prior}}\).
 - Với mỗi iteration \(k\):
@@ -255,17 +257,19 @@ f_p^c > 0 \implies \text{cost}(p) = \min_{p' \in \mathcal{P}_{od}} \text{cost}(p
 
 ---
 
-## 6. Regularization & Speed Constraint
+## 6. Giới hạn nghiên cứu khi chuyển đoạn thành điểm
 
-- Thành phần \(\lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2\) giúp tránh ill-posedness.
-- Thành phần \(w_2 \sum (S^{\text{sim}} - S^{\text{obs}})^2\) đảm bảo OD estimation phù hợp với dữ liệu tốc độ, không chỉ flow.
+- **Ưu điểm:**
+  - Giảm độ phức tạp của bài toán (ít biến, ít tham số cần calibrate).
+  - Phù hợp với bản chất dữ liệu VDS vốn là điểm đo.
+  - Vẫn giữ được thông tin quan trọng (flow + speed trung bình).
 
----
+- **Hạn chế:**
+  - Không mô phỏng chi tiết travel time trên toàn đoạn, chỉ phản ánh trạng thái tại điểm.
+  - Tốc độ trung bình tại điểm có thể bị nhiễu bởi vị trí sensor (gần nút giao, đèn tín hiệu).
+  - Khả năng mở rộng sang phân tích động (theo giờ cao điểm) có thể bị hạn chế nếu chỉ dựa vào điểm.
 
-## 7. Đầu ra
-
-- Ma trận OD đa phương thức \(\mathbf{OD}^*\) cho 32 vùng, 1024 OD pairs, 3 loại phương tiện.
-- Bộ tham số BPR \((\alpha_l, \beta_l)\) đã calibrate.
-- Bộ chỉ số đánh giá accuracy (RMSE flow, RMSE speed, stability index).
-
+- **Chiến lược khắc phục:**
+  - Ghi rõ trong luận án rằng đây là lựa chọn chiến lược để giảm độ phức tạp.
+  - Đề xuất hướng mở rộng: kết hợp dữ liệu đoạn dài hoặc dữ liệu di động độ phân giải cao hơn để bổ sung travel time chi tiết.
 
