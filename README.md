@@ -1,159 +1,82 @@
 # proposal-phd
 human mobility - OD flow generation 
 
-**Đề tài:**  
-Phát triển khung ước lượng ma trận OD đa phương thức tích hợp dữ liệu di động, flow và speed quan trắc: Nghiên cứu tại khu vực lõi TP. Hồ Chí Minh
+**Đề tài:** Phát triển khung ước lượng ma trận OD đa phương thức tích hợp dữ liệu di động, lưu lượng và tốc độ quan trắc hai chiều: Nghiên cứu tại khu vực lõi TP. Hồ Chí Minh
 
 ## 1. GIỚI THIỆU
 
 ### 1.1. Tính cấp thiết & Khoảng trống nghiên cứu
+TP. Hồ Chí Minh đang trải qua sự chuyển dịch cơ cấu phương tiện mạnh mẽ. Dữ liệu VDS mới nhất cho thấy xe máy chỉ còn chiếm khoảng **38%** lưu lượng trên các tuyến chính khu vực lõi, phản ánh sự gia tăng nhanh chóng của ô tô cá nhân. Tuy nhiên, các phương pháp ước lượng ma trận OD truyền thống vẫn dựa nặng nề vào khảo sát hộ gia đình tốn kém hoặc các giả định lỗi thời về tỉ lệ xe máy (>80%). 
 
-- TP. Hồ Chí Minh là đô thị điển hình “motorbike-dominant” nhưng đang chuyển dịch (xe máy ~38% trên tuyến chính theo dữ liệu VDS mới nhất), giao thông hỗn hợp mạnh (xe máy, ô tô, xe tải), biến động cao theo thời gian.
-- Phương pháp truyền thống (khảo sát hộ gia đình) tốn kém, ít cập nhật.
-- Big data (Facebook Movement) và dữ liệu VDS (flow + speed) cung cấp thông tin luồng di chuyển, tốc độ, mở ra cơ hội ước lượng ma trận OD chính xác, cập nhật, phục vụ quy hoạch và điều hành giao thông thông minh.
-- **Khoảng trống nghiên cứu**: Hầu hết các công trình chỉ dùng mobile data làm prior (gravity model) hoặc chỉ dùng flow; rất ít tích hợp speed constraint và regularization cho mạng hỗn hợp. Chưa có nghiên cứu nào áp dụng SPSA bilevel với multi-class static assignment trên dữ liệu thực tế Việt Nam, đặc biệt với tỷ lệ xe máy giảm dần trên tuyến chính.
+**Khoảng trống nghiên cứu:** * Hầu hết các công trình hiện nay chỉ sử dụng dữ liệu di động làm thông tin tiên nghiệm (prior) đơn lẻ hoặc chỉ dựa vào lưu lượng (flow). 
+* Rất ít nghiên cứu tích hợp đồng thời ràng buộc tốc độ (**speed constraint**) và cơ chế hiệu chỉnh (**regularization**) cho mạng lưới hỗn hợp với các cung đường ngắn đặc thù đô thị. 
+* Chưa có khung nghiên cứu nào giải quyết triệt để bài toán khớp nối dữ liệu quan trắc hai chiều (**bi-directional flow**) vào mô hình phân bổ tĩnh đa lớp tại Việt Nam.
 
 ### 1.2. Mục tiêu nghiên cứu
+1. Xây dựng ma trận OD khởi tạo cho 3 nhóm phương tiện (Motorbike ~38%, Car ~29%, Truck/Heavy ~32%) tại 5 quận lõi (Q.1, 3, 10, Tân Bình, Bình Thạnh) tích hợp từ Facebook Movement và POI.
+2. Phát triển thuật toán hiệu chỉnh OD dựa trên tiệm cận **Entropy Maximization** kết hợp **Weighted Least Squares (WLS)** để xử lý dữ liệu từ 76 trạm VDS.
+3. Đánh giá độ tin cậy của mô hình thông qua chỉ số GEH và sự bảo toàn cấu trúc phân bố chuyến đi (Trip Length Distribution).
 
-1. Xây dựng ma trận OD cho 2–3 nhóm phương tiện (motorbike ~38%, car/light vehicle ~29%, truck/heavy ~32%) tại 5 quận lõi (Quận 1, 3, 10, Tân Bình, Bình Thạnh), tích hợp đồng thời Facebook distance distribution, POI và VDS (flow + speed).
-2. Phát triển khung hiệu chỉnh OD dựa trên:
-   - Static Multi-class User Equilibrium
-   - Bilevel optimization với thuật toán SPSA
-   - Calibration BPR function sử dụng cả flow và speed
-3. Đánh giá mức độ cải thiện accuracy & stability nhờ speed data và regularization, chứng minh tính ưu việt so với các phương pháp chỉ dùng flow hoặc prior đơn giản.
+---
 
 ## 2. PHẠM VI VÀ NGUỒN DỮ LIỆU
 
-### 2.1. Phạm vi không gian
+### 2.1. Phạm vi không gian & Phân vùng
+* **Khu vực:** 5 quận lõi TP.HCM, phân chia thành **32 vùng (zones)** theo đơn vị hành chính phường.
+* **Mạng lưới:** Trích xuất từ OpenStreetMap (OSM), tập trung vào các trục huyết mạch nơi đặt sensor.
 
-- Khu vực nghiên cứu: 5 quận lõi TP. Hồ Chí Minh (Quận 1, 3, 10, Tân Bình, Bình Thạnh).
-- Phân vùng: theo phường (32 vùng), ~1024 OD pairs.
-- Tạm thời không xem xét các OD dài > 15km vì phạm vi các quận di chuyển không vượt quá quảng đường này.
+### 2.2. Nguồn dữ liệu (Input)
+* **Dữ liệu nền:** Facebook Movement (phân phối khoảng cách di chuyển) và dữ liệu POI (8 nhóm chức năng) để tạo ma trận Prior.
+* **Dữ liệu quan trắc:** 76 trạm VDS cung cấp lưu lượng PCU tổng hợp 24h và vận tốc trung bình ($km/h$). Đặc thù dữ liệu ghi nhận trên mặt cắt ngang hai chiều.
 
-### 2.2. Nguồn dữ liệu
+---
 
-| Loại dữ liệu          | Nguồn                  | Đặc điểm                                                                 |
-|-----------------------|------------------------|--------------------------------------------------------------------------|
-| Mạng lưới giao thông  | OSM                   | Đường, phân loại, POIs (8 nhóm: văn phòng, trường học, giải trí…)        |
-| Dữ liệu di động nền   | Facebook Movement     | Phân phối khoảng cách di chuyển (0–1 km, 1–10 km, >10 km), dùng làm prior cho OD |
-| Dữ liệu quan trắc     | Hệ thống VDS (76 trạm)| - Flow tổng hợp (PCU/h) + tốc độ trung bình (km/h)<br>- Phân loại theo Loại 1 (xe máy ~38,14%), Loại 2 (xe con/ô tô nhỏ ~29,43%), Loại 3–5 (xe tải/xe lớn ~32,43%)<br>- Dữ liệu tổng 24h ngày thường, tập trung tuyến đường chính<br>- PCU cao trên huyết mạch, speed biến động 29–47 km/h |
+## 3. PHƯƠNG PHÁP NGHIÊN CỨU
 
-### 2.3. Lát cắt thời gian
+### 3.1. Xây dựng Ma trận OD Tiên nghiệm (Prior OD)
+Sử dụng mô hình Gravity cải biên, trong đó hàm chi phí khoảng cách được hiệu chỉnh bởi dữ liệu Facebook Movement.
+$$OD_{ij}^{prior} = \alpha \cdot P_i \cdot A_j \cdot f(d_{ij})$$
+*Trong đó $P_i, A_j$ là khả năng phát sinh/hấp dẫn dựa trên trọng số POI.*
 
-- Chỉ xét ngày thường, tổng 24h, giảm complexity.
-- Future work: phân tích giờ cao điểm và ngày cuối tuần.
+### 3.2. Thuật toán Ước lượng Entropy Maximization (EM)
+Để phù hợp với các cung quan trắc ngắn và giảm độ phức tạp tính toán của các bài toán Bilevel, nghiên cứu áp dụng phương pháp tối ưu hóa lồi một cấp:
 
-### 2.4. Phân bố các loại phương tiện (dựa trên dữ liệu VDS ngày 02/04/2025)
+**Khớp nối dữ liệu hai chiều:** Xây dựng ma trận đóng góp gộp $P^{agg}$ từ kết quả phân bổ tĩnh (Static Assignment). Đối với trạm VDS $l$ án ngữ trên cung thuận ($a$) và nghịch ($b$):
+$$P_{l,ij}^{agg} = P_{a,ij} + P_{b,ij}$$
 
-Dựa trên dữ liệu quan trắc từ các trục đường chính trong khu vực lõi (Điện Biên Phủ, Ba Tháng Hai, Lý Thái Tổ, Cộng Hòa...):
+**Hàm mục tiêu (Objective Function):**
+$$\min J(OD) = \sum_{ij} OD_{ij} \left( \ln \frac{OD_{ij}}{OD_{ij}^{prior}} - 1 \right) + \frac{1}{2} \sum_{l \in \mathcal{L}} w_l \left( V_l^{sim} - V_l^{obs} \right)^2$$
+*Với:*
+* $V_l^{sim} = \sum_{ij} P_{l,ij}^{agg} \cdot OD_{ij}$
+* $w_l$: Trọng số tin cậy tỉ lệ thuận với vận tốc quan trắc $S_l^{obs}$.
 
-- **Loại 1 (xe máy/mô tô)**: ~38,14% tổng lưu lượng xe.
-- **Loại 2 (xe con/ô tô nhỏ)**: ~29,43% tổng lưu lượng xe.
-- **Tổng phương tiện nhẹ (Loại 1 + 2)**: ~67,57%.
-- **Loại 3–5 (xe tải nhỏ/trung bình, xe khách, container)**: ~32,43%.
+### 3.3. Công cụ thực hiện
+* **Ngôn ngữ:** Python (Pandas, NumPy, SciPy).
+* **Mô phỏng:** AequilibraE (xây dựng ma trận $P$ và chạy Assignment).
+* **GIS:** QGIS và OSMnx để xử lý mạng lưới.
 
-**Nhận xét**:
-- Xe máy không còn chiếm ưu thế tuyệt đối như các thống kê cũ (thường >70–80%), mà chỉ khoảng 38% trên tuyến chính được VDS quan trắc → phản ánh sự gia tăng xe con/ô tô cá nhân ở khu vực lõi.
-- Tỷ trọng này hỗ trợ định nghĩa **2–3 lớp phương tiện** cho multi-class assignment: motorbike (~38%), car/light (~29%), truck/heavy (~32%).
-- Dữ liệu VDS có thể under-represent xe máy trên đường nhỏ/làn phụ → cần kết hợp prior từ Facebook Movement + POI để cân bằng ma trận OD.
+---
 
-## 3. CÂU HỎI NGHIÊN CỨU
+## 4. TÍNH MỚI VÀ ĐÓNG GÓP
 
-- RQ1: Làm thế nào tích hợp **đồng thời** POI + Facebook distance distribution + speed constraint để xây dựng OD prior và hiệu chỉnh ma trận OD đa phương thức ở đô thị motorbike-dominant nhưng đang chuyển dịch?
-- RQ2: Việc áp dụng **regularized SPSA bilevel optimization** với static multi-class assignment và speed data có cải thiện đáng kể độ chính xác, stability và giải quyết được vấn đề ill-posedness so với các phương pháp truyền thống chỉ dùng flow?
+| Yếu tố | Nghiên cứu truyền thống | Đề xuất của luận án |
+| :--- | :--- | :--- |
+| **Dữ liệu** | Đơn nguồn hoặc giả định tĩnh | Đa nguồn: FB + POI + VDS (Flow & Speed) |
+| **Cấu trúc đường** | Thường giả định cung dài | Tối ưu cho cung ngắn, mật độ nút giao dày |
+| **Hướng di chuyển** | Tách chiều khiên cưỡng | Gộp ma trận đóng góp (Aggregated Matrix) |
+| **Giải thuật** | Bilevel/SPSA (dễ nhiễu) | Entropy Scaling (ổn định, hội tụ nhanh) |
 
-## 4. PHƯƠNG PHÁP NGHIÊN CỨU
+---
 
-### 4.1. Xây dựng ma trận OD khởi tạo
+## 5. KẾ HOẠCH THỰC HIỆN
 
-- Gravity model: attraction = weighted POI (hoặc tổng số POI)
-- Facebook Movement: dùng để calibrate distance distribution cho OD pair
-- Kết quả: OD_prior cho 2–3 nhóm phương tiện (dựa trên tỷ trọng thực tế từ VDS)
+1. **Giai đoạn 1 (Tháng 1-6):** Số hóa mạng lưới, Mapping 76 trạm VDS vào Link ID, chuẩn hóa dữ liệu PCU hai chiều.
+2. **Giai đoạn 2 (Tháng 7-15):** Xây dựng ma trận Prior. Chạy Assignment khởi tạo để trích xuất ma trận xác suất $P$.
+3. **Giai đoạn 3 (Tháng 16-27):** Thực hiện tối ưu hóa Entropy. Đánh giá sai số GEH và hiệu chỉnh trọng số $w_l$ theo Speed.
+4. **Giai đoạn 4 (Tháng 28-36):** Viết bài báo quốc tế (Q1/Q2) và hoàn thiện luận án.
 
-### 4.2. Calibration của BPR function
+---
 
-- Sử dụng flow + speed từ VDS:
-  - Travel time: ( t = L / speed )
-  - Free-flow speed: 85th percentile hoặc OSM speed limit
-- Fit BPR parameters α, β cho từng loại đường
-- Outcome: link cost function calibrated, tăng độ tin cậy cho traffic assignment
-
-### 4.3. Phân bổ giao thông & OD estimation
-
-- Static Multi-class Assignment (UE)
-  - 2–3 nhóm phương tiện (motorbike, car/taxi, truck) dựa trên tỷ trọng VDS
-  - Flow & speed riêng cho từng link
-- Bilevel Optimization với SPSA
-  - Upper level: điều chỉnh OD → giảm flow + speed error
-  - Lower level: chạy UE assignment
-- Hàm mục tiêu (regularized):
-$$J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}} - V_{l}^{\text{obs}} \right)^2 + w_2 \sum_{l \in \mathcal{L}} \left( S_{l}^{\text{sim}} - S_{l}^{\text{obs}} \right)^2 + \lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2$$
-- Điều kiện dừng: RMSE hội tụ hoặc đạt max iterations
-
-### 4.4. Công cụ dự kiến
-
-- Python: core language
-- AequilibraE: UE assignment
-- NumPy / SciPy: SPSA, dữ liệu
-- QGIS: GIS visualization
-
-## 5. TÍNH MỚI VÀ ĐÓNG GÓP
-
-### 5.1. Tính mới
-
-| Yếu tố                  | Nghiên cứu trước đây                          | Nghiên cứu này (novelty)                              |
-|-------------------------|-----------------------------------------------|-------------------------------------------------------|
-| Nguồn dữ liệu           | Chỉ Facebook/Gravity hoặc chỉ VDS flow        | Tích hợp đồng thời Facebook distance + POI + flow + speed |
-| Phân loại phương tiện   | Giả định xe máy chiếm >70–80%                 | Dựa trên dữ liệu thực tế VDS mới: motorbike ~38%, car ~29%, heavy ~32% |
-| Phương pháp tối ưu      | Bilevel gradient-based hoặc chỉ single-class  | SPSA bilevel + multi-class static assignment           |
-| Regularization & speed  | Thường không có hoặc chỉ đơn giản             | Regularized objective với speed constraint → giải quyết ill-posedness |
-
-→ Đây là khung OD estimation **đầu tiên** áp dụng cho đô thị đang phát triển với tỷ lệ xe máy giảm dần trên tuyến chính, sử dụng dữ liệu thực tế mới nhất.
-
-### 5.2. Đóng góp
-
-- Học thuật: Khung regularized multi-class OD estimation mới, có thể áp dụng cho các thành phố Đông Nam Á.
-- Thực tiễn: OD matrix cho 5 quận lõi → input cho quy hoạch, mô phỏng ùn tắc, kịch bản hạ tầng TP.HCM.
-
-## 6. GIẢ THUYẾT NGHIÊN CỨU
-
-- H1: Tích hợp Facebook distance + speed constraint + regularization cải thiện accuracy & stability vượt trội so với gravity-only hoặc flow-only.
-- H2: Multi-class SPSA bilevel cho phép recover OD đáng tin cậy từ dữ liệu sparse trong mạng hỗn hợp.
-
-## 7. KẾ HOẠCH THỰC HIỆN
-
-| Giai đoạn | Thời gian       | Nội dung chính                                                                 |
-|-----------|-----------------|--------------------------------------------------------------------------------|
-| 1         | Tháng 1–6       | GIS, OSM, zoning 32 vùng, chuẩn hóa VDS flow + speed, thu thập Facebook Movement |
-| 2         | Tháng 7–15      | Gravity OD prior + POI weighting, calibration BPR từ flow & speed, static multi-class assignment |
-| 3         | Tháng 16–27     | SPSA bilevel optimization, chạy thực nghiệm, đánh giá RMSE, viết bài báo 1 (Q2) |
-| 4         | Tháng 28–36     | Kiểm chứng với dữ liệu khác (nếu có), viết bài báo quốc tế 2 (Q1/Q2), hoàn thiện luận án, bảo vệ |
-
-## 8. HẠN CHẾ & HƯỚNG MỞ RỘNG
-
-**Hạn chế:**
-- Chỉ xét ngày thường, tổng 24h
-- Speed aggregated, không phân loại theo phương tiện chi tiết ở một số đoạn
-- Sensor coverage chưa 100%, xe máy có thể under-represent trên đường phụ
-
-**Hướng mở rộng:**
-- Phân tích giờ cao điểm & cuối tuần
-- Dynamic assignment hoặc time-of-day OD
-- So sánh với dữ liệu di động độ phân giải cao hơn
-
-## 6. Giới hạn nghiên cứu khi chuyển đoạn thành điểm
-
-- **Ưu điểm:**
-  - Giảm độ phức tạp của bài toán (ít biến, ít tham số cần calibrate).
-  - Phù hợp với bản chất dữ liệu VDS vốn là điểm đo.
-  - Vẫn giữ được thông tin quan trọng (flow + speed trung bình).
-
-- **Hạn chế:**
-  - Không mô phỏng chi tiết travel time trên toàn đoạn, chỉ phản ánh trạng thái tại điểm.
-  - Tốc độ trung bình tại điểm có thể bị nhiễu bởi vị trí sensor (gần nút giao, đèn tín hiệu).
-  - Khả năng mở rộng sang phân tích động (theo giờ cao điểm) có thể bị hạn chế nếu chỉ dựa vào điểm.
-
-- **Chiến lược khắc phục:**
-  - Ghi rõ trong luận án rằng đây là lựa chọn chiến lược để giảm độ phức tạp.
-  - Đề xuất hướng mở rộng: kết hợp dữ liệu đoạn dài hoặc dữ liệu di động độ phân giải cao hơn để bổ sung travel time chi tiết.
-
+## 6. HẠN CHẾ & HƯỚNG MỞ RỘNG
+* **Hạn chế:** Chưa xét đến biến động theo giờ (Time-of-day). Việc gộp hai chiều có thể làm mờ tính hướng tâm trong giờ cao điểm.
+* **Mở rộng:** Phát triển mô hình cho các khung giờ cao điểm sáng/chiều khi có dữ liệu tách hướng chi tiết hơn.
