@@ -92,9 +92,7 @@ Dựa trên dữ liệu quan trắc từ các trục đường chính trong khu 
   - Upper level: điều chỉnh OD → giảm flow + speed error
   - Lower level: chạy UE assignment
 - Hàm mục tiêu (regularized):
-  \[
-  J = w_1 \sum (V_{\text{sim}}-V_{\text{obs}})^2 + w_2 \sum (S_{\text{sim}}-S_{\text{obs}})^2 + \lambda \| \text{OD} - \text{OD}_{\text{prior}} \|_2^2
-  \]
+$$J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}} - V_{l}^{\text{obs}} \right)^2 + w_2 \sum_{l \in \mathcal{L}} \left( S_{l}^{\text{sim}} - S_{l}^{\text{obs}} \right)^2 + \lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2$$
 - Điều kiện dừng: RMSE hội tụ hoặc đạt max iterations
 
 ### 4.4. Công cụ dự kiến
