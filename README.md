@@ -1,9 +1,6 @@
 # proposal-phd
 human mobility - OD flow generation 
 
-# ĐỀ CƯƠNG NGHIÊN CỨU LUẬN ÁN TIẾN SĨ  
-**(Phiên bản tối ưu, nhấn mạnh tính mới & dữ liệu thực tế – sẵn sàng submit)**
-
 **Đề tài:**  
 Phát triển khung ước lượng ma trận OD đa phương thức tích hợp dữ liệu di động, flow và speed quan trắc: Nghiên cứu tại khu vực lõi TP. Hồ Chí Minh
 
@@ -31,9 +28,7 @@ Phát triển khung ước lượng ma trận OD đa phương thức tích hợp
 
 - Khu vực nghiên cứu: 5 quận lõi TP. Hồ Chí Minh (Quận 1, 3, 10, Tân Bình, Bình Thạnh).
 - Phân vùng: theo phường (32 vùng), ~1024 OD pairs.
-- Có thể giảm dimension bằng:
-  - Loại bỏ OD dài >15 km
-  - Giảm nhóm phương tiện nếu sensor phân loại kém
+- Tạm thời không xem xét các OD dài > 15km vì phạm vi các quận di chuyển không vượt quá quảng đường này.
 
 ### 2.2. Nguồn dữ liệu
 
