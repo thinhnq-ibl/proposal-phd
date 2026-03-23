@@ -65,6 +65,7 @@ $$\min J(OD) = \sum_{ij} OD_{ij} \left( \ln \frac{OD_{ij}}{OD_{ij}^{prior}} - 1 
 | **Cấu trúc đường** | Thường giả định cung dài | Tối ưu cho cung ngắn, mật độ nút giao dày |
 | **Hướng di chuyển** | Tách chiều khiên cưỡng | Gộp ma trận đóng góp (Aggregated Matrix) |
 | **Giải thuật** | Bilevel/SPSA (dễ nhiễu) | Entropy Scaling (ổn định, hội tụ nhanh) |
+| **Phương pháp** | dùng entropy cho flow một chiều| mở rộng cho bi-directional flow + speed weighting|
 
 ---
 
@@ -80,3 +81,4 @@ $$\min J(OD) = \sum_{ij} OD_{ij} \left( \ln \frac{OD_{ij}}{OD_{ij}^{prior}} - 1 
 ## 6. HẠN CHẾ & HƯỚNG MỞ RỘNG
 * **Hạn chế:** Chưa xét đến biến động theo giờ (Time-of-day). Việc gộp hai chiều có thể làm mờ tính hướng tâm trong giờ cao điểm.
 * **Mở rộng:** Phát triển mô hình cho các khung giờ cao điểm sáng/chiều khi có dữ liệu tách hướng chi tiết hơn.
+* Phương pháp Entropy giả định OD là liên tục, cần hậu xử lý để đảm bảo số chuyến có ý nghĩa thực tế.
