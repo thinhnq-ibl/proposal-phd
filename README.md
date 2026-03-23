@@ -140,3 +140,132 @@ $$J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}} - V_{l
 - Phân tích giờ cao điểm & cuối tuần
 - Dynamic assignment hoặc time-of-day OD
 - So sánh với dữ liệu di động độ phân giải cao hơn
+  
+# 📐 Mô hình toán học cho OD Flow Generation
+
+## 1. Ký hiệu và biến số
+
+- **Tập hợp vùng**: \(\mathcal{Z} = \{1,2,\dots,Z\}\), với \(Z=32\).
+- **Tập hợp OD pairs**: \(\mathcal{P} = \{(o,d) \mid o,d \in \mathcal{Z}, o \neq d\}\), \(|\mathcal{P}| \approx 1024\).
+- **Tập hợp loại phương tiện**: \(\mathcal{C} = \{1,2,3\}\)  
+  - \(c=1\): motorbike (~38%)  
+  - \(c=2\): car/light (~29%)  
+  - \(c=3\): truck/heavy (~32%)
+- **OD demand**: \(q_{od}^c\) = số chuyến từ \(o\) đến \(d\) của loại phương tiện \(c\).
+- **OD ma trận**: \(\mathbf{OD} = \{q_{od}^c\}_{(o,d)\in \mathcal{P}, c\in \mathcal{C}}\).
+- **OD prior**: \(\mathbf{OD}_{\text{prior}}\) từ gravity model + Facebook Movement + POI.
+- **Mạng lưới giao thông**: \(\mathcal{L}\) = tập hợp các links.
+- **Flow quan trắc**: \(V_l^{\text{obs}}\), **Speed quan trắc**: \(S_l^{\text{obs}}\).
+- **Flow mô phỏng**: \(V_l^{\text{sim}}(\mathbf{OD})\), **Speed mô phỏng**: \(S_l^{\text{sim}}(\mathbf{OD})\).
+
+---
+
+## 2. Hàm chi phí liên kết (Link Cost Function)
+
+Sử dụng dạng BPR:
+
+
+
+\[
+t_l^c = t_l^{0,c} \left[ 1 + \alpha_l \left( \frac{V_l^c}{C_l^c} \right)^{\beta_l} \right]
+\]
+
+
+
+- \(t_l^c\): travel time trên link \(l\) cho phương tiện \(c\).
+- \(t_l^{0,c} = \frac{L_l}{S_l^{\text{free},c}}\): free-flow travel time.
+- \(V_l^c\): lưu lượng trên link \(l\) của phương tiện \(c\).
+- \(C_l^c\): capacity của link \(l\) cho phương tiện \(c\).
+- \(\alpha_l, \beta_l\): tham số cần calibrate từ dữ liệu flow + speed.
+
+---
+
+## 3. Bài toán phân bổ giao thông (Static Multi-class UE)
+
+Mỗi loại phương tiện \(c\) tuân theo nguyên lý cân bằng người dùng (Wardrop):
+
+
+
+\[
+\text{Tìm } \{f_p^c\} \quad \text{sao cho} \quad \sum_{p \in \mathcal{P}_{od}} f_p^c = q_{od}^c, \quad \forall (o,d), c
+\]
+
+
+
+với \(f_p^c\) là flow trên đường đi \(p\) của loại \(c\).
+
+Điều kiện cân bằng:
+
+
+
+\[
+f_p^c > 0 \implies \text{cost}(p) = \min_{p' \in \mathcal{P}_{od}} \text{cost}(p')
+\]
+
+
+
+---
+
+## 4. Bài toán bilevel OD estimation
+
+### Upper level (ước lượng OD):
+
+
+
+\[
+\min_{\mathbf{OD}} J(\mathbf{OD}) = w_1 \sum_{l \in \mathcal{L}} \left( V_{l}^{\text{sim}}(\mathbf{OD}) - V_{l}^{\text{obs}} \right)^2 + w_2 \sum_{l \in \mathcal{L}} \left( S_{l}^{\text{sim}}(\mathbf{OD}) - S_{l}^{\text{obs}} \right)^2 + \lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2
+\]
+
+
+
+### Lower level (assignment):
+
+
+
+\[
+\mathbf{V}^{\text{sim}}, \mathbf{S}^{\text{sim}} = \text{UE\_Assignment}(\mathbf{OD}, \mathcal{L}, \text{BPR})
+\]
+
+
+
+---
+
+## 5. Thuật toán giải (SPSA – Simultaneous Perturbation Stochastic Approximation)
+
+- Khởi tạo: \(\mathbf{OD}^{(0)} = \mathbf{OD}_{\text{prior}}\).
+- Với mỗi iteration \(k\):
+  1. Sinh vector perturbation \(\Delta^{(k)}\).
+  2. Tính gradient xấp xỉ:
+     
+
+\[
+     g^{(k)} \approx \frac{J(\mathbf{OD}^{(k)} + c_k \Delta^{(k)}) - J(\mathbf{OD}^{(k)} - c_k \Delta^{(k)})}{2c_k} \Delta^{(k)}^{-1}
+     \]
+
+
+  3. Cập nhật:
+     
+
+\[
+     \mathbf{OD}^{(k+1)} = \mathbf{OD}^{(k)} - a_k g^{(k)}
+     \]
+
+
+- Điều kiện dừng: RMSE hội tụ hoặc đạt số vòng lặp tối đa.
+
+---
+
+## 6. Regularization & Speed Constraint
+
+- Thành phần \(\lambda \| \mathbf{OD} - \mathbf{OD}_{\text{prior}} \|_2^2\) giúp tránh ill-posedness.
+- Thành phần \(w_2 \sum (S^{\text{sim}} - S^{\text{obs}})^2\) đảm bảo OD estimation phù hợp với dữ liệu tốc độ, không chỉ flow.
+
+---
+
+## 7. Đầu ra
+
+- Ma trận OD đa phương thức \(\mathbf{OD}^*\) cho 32 vùng, 1024 OD pairs, 3 loại phương tiện.
+- Bộ tham số BPR \((\alpha_l, \beta_l)\) đã calibrate.
+- Bộ chỉ số đánh giá accuracy (RMSE flow, RMSE speed, stability index).
+
+
