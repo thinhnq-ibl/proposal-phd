@@ -1,84 +1,262 @@
-# proposal-phd
-human mobility - OD flow generation 
+# OD Flow Generation with Radiation Opportunity and Distance-Bin Calibration
 
-**Đề tài:** Phát triển khung ước lượng ma trận OD đa phương thức tích hợp dữ liệu di động, lưu lượng và tốc độ quan trắc hai chiều: Nghiên cứu tại khu vực lõi TP. Hồ Chí Minh
+## 1. Notation and Data Inputs
 
-## 1. GIỚI THIỆU
+Giả sử vùng nghiên cứu được chia thành $N$ **subzones**.
 
-### 1.1. Tính cấp thiết & Khoảng trống nghiên cứu
-TP. Hồ Chí Minh đang trải qua sự chuyển dịch cơ cấu phương tiện mạnh mẽ. Dữ liệu VDS mới nhất cho thấy xe máy chỉ còn chiếm khoảng **38%** lưu lượng trên các tuyến chính khu vực lõi, phản ánh sự gia tăng nhanh chóng của ô tô cá nhân. Tuy nhiên, các phương pháp ước lượng ma trận OD truyền thống vẫn dựa nặng nề vào khảo sát hộ gia đình tốn kém hoặc các giả định lỗi thời về tỉ lệ xe máy (>80%). 
+Origins và destinations thuộc cùng một tập zone:
 
-**Khoảng trống nghiên cứu:** * Hầu hết các công trình hiện nay chỉ sử dụng dữ liệu di động làm thông tin tiên nghiệm (prior) đơn lẻ hoặc chỉ dựa vào lưu lượng (flow). 
-* Rất ít nghiên cứu tích hợp đồng thời ràng buộc tốc độ (**speed constraint**) và cơ chế hiệu chỉnh (**regularization**) cho mạng lưới hỗn hợp với các cung đường ngắn đặc thù đô thị. 
-* Chưa có khung nghiên cứu nào giải quyết triệt để bài toán khớp nối dữ liệu quan trắc hai chiều (**bi-directional flow**) vào mô hình phân bổ tĩnh đa lớp tại Việt Nam.
+$$
+i,j \in \{1,\dots,N\}
+$$
 
-### 1.2. Mục tiêu nghiên cứu
-1. Xây dựng ma trận OD khởi tạo cho 3 nhóm phương tiện (Motorbike ~38%, Car ~29%, Truck/Heavy ~32%) tại 4 quận lõi (Q.1, 3, 10, 5) tích hợp từ Facebook Movement và POI.
-2. Phát triển thuật toán hiệu chỉnh OD dựa trên tiệm cận **Entropy Maximization** kết hợp **Weighted Least Squares (WLS)** để xử lý dữ liệu từ 33 trạm VDS.
-3. Đánh giá độ tin cậy của mô hình thông qua chỉ số GEH và sự bảo toàn cấu trúc phân bố chuyến đi (Trip Length Distribution).
+Các biến quan sát:
 
----
+| Symbol | Description |
+|------|-------------|
+| $P_i$ | population tại subzone $i$ |
+| $d_{ij}$ | khoảng cách giữa $i$ và $j$ |
+| $n_{jc}$ | số POI loại $c$ tại zone $j$ |
+| $w_c$ | trọng số của POI loại $c$ |
+| $p_k$ | tỷ lệ trips trong distance bin $k$ (Meta mobility data) |
+| $T$ | tổng số trips trong hệ thống |
 
-## 2. PHẠM VI VÀ NGUỒN DỮ LIỆU
+Distance bins:
 
-### 2.1. Phạm vi không gian & Phân vùng
-* **Khu vực:** 5 quận lõi TP.HCM, phân chia thành **32 vùng (zones)** theo đơn vị hành chính phường.
-* **Mạng lưới:** Trích xuất từ OpenStreetMap (OSM), tập trung vào các trục huyết mạch nơi đặt sensor.
-
-### 2.2. Nguồn dữ liệu (Input)
-* **Dữ liệu nền:** Facebook Movement (phân phối khoảng cách di chuyển) và dữ liệu POI (8 nhóm chức năng) để tạo ma trận Prior.
-* **Dữ liệu quan trắc:** 76 trạm VDS cung cấp lưu lượng PCU tổng hợp 24h và vận tốc trung bình ($km/h$). Đặc thù dữ liệu ghi nhận trên mặt cắt ngang hai chiều.
+- $[0,1)$ km  
+- $[1,10)$ km  
+- $[10,100)$ km  
 
 ---
 
-## 3. PHƯƠNG PHÁP NGHIÊN CỨU
+# 2. Model Structure
 
-### 3.1. Xây dựng Ma trận OD Tiên nghiệm (Prior OD)
-Sử dụng mô hình Gravity cải biên, trong đó hàm chi phí khoảng cách được hiệu chỉnh bởi dữ liệu Facebook Movement.
-$$OD_{ij}^{prior} = \alpha \cdot P_i \cdot A_j \cdot f(d_{ij})$$
-*Trong đó $P_i, A_j$ là khả năng phát sinh/hấp dẫn dựa trên trọng số POI.*
+## 2.1 Origin Mass
 
-### 3.2. Thuật toán Ước lượng Entropy Maximization (EM)
-Để phù hợp với các cung quan trắc ngắn và giảm độ phức tạp tính toán của các bài toán Bilevel, nghiên cứu áp dụng phương pháp tối ưu hóa lồi một cấp:
+Origin mass được xác định từ population:
 
-**Khớp nối dữ liệu hai chiều:** Xây dựng ma trận đóng góp gộp $P^{agg}$ từ kết quả phân bổ tĩnh (Static Assignment). Đối với trạm VDS $l$ án ngữ trên cung thuận ($a$) và nghịch ($b$):
-$$P_{l,ij}^{agg} = P_{a,ij} + P_{b,ij}$$
+$$
+O_i = P_i + 1
+$$
 
-**Hàm mục tiêu (Objective Function):**
-$$\min J(OD) = \sum_{ij} OD_{ij} \left( \ln \frac{OD_{ij}}{OD_{ij}^{prior}} - 1 \right) + \frac{1}{2} \sum_{l \in \mathcal{L}} w_l \left( V_l^{sim} - V_l^{obs} \right)^2$$
-*Với:*
-* $V_l^{sim} = \sum_{ij} P_{l,ij}^{agg} \cdot OD_{ij}$
-* $w_l$: Trọng số tin cậy tỉ lệ thuận với vận tốc quan trắc $S_l^{obs}$.
-
-### 3.3. Công cụ thực hiện
-* **Ngôn ngữ:** Python (Pandas, NumPy, SciPy).
-* **Mô phỏng:** AequilibraE (xây dựng ma trận $P$ và chạy Assignment).
-* **GIS:** QGIS và OSMnx để xử lý mạng lưới.
+(+1 nhằm tránh giá trị bằng 0)
 
 ---
 
-## 4. TÍNH MỚI VÀ ĐÓNG GÓP
+## 2.2 Destination Attractiveness from POIs
 
-| Yếu tố | Nghiên cứu truyền thống | Đề xuất của luận án |
-| :--- | :--- | :--- |
-| **Dữ liệu** | Đơn nguồn hoặc giả định tĩnh | Đa nguồn: FB + POI + VDS (Flow & Speed) |
-| **Cấu trúc đường** | Thường giả định cung dài | Tối ưu cho cung ngắn, mật độ nút giao dày |
-| **Hướng di chuyển** | Tách chiều khiên cưỡng | Gộp ma trận đóng góp (Aggregated Matrix) |
-| **Giải thuật** | Bilevel/SPSA (dễ nhiễu) | Entropy Scaling (ổn định, hội tụ nhanh) |
-| **Phương pháp** | dùng entropy cho flow một chiều| mở rộng cho bi-directional flow + speed weighting|
+Destination attractiveness của zone $j$:
 
----
+$$
+D_j =
+\sum_{c \in C} w_c n_{jc} + 1
+$$
 
-## 5. KẾ HOẠCH THỰC HIỆN
+Trong đó tập POI categories:
 
-1. **Giai đoạn 1 (Tháng 1-6):** Số hóa mạng lưới, Mapping 76 trạm VDS vào Link ID, chuẩn hóa dữ liệu PCU hai chiều.
-2. **Giai đoạn 2 (Tháng 7-15):** Xây dựng ma trận Prior. Chạy Assignment khởi tạo để trích xuất ma trận xác suất $P$.
-3. **Giai đoạn 3 (Tháng 16-27):** Thực hiện tối ưu hóa Entropy. Đánh giá sai số GEH và hiệu chỉnh trọng số $w_l$ theo Speed.
-4. **Giai đoạn 4 (Tháng 28-36):** Viết bài báo quốc tế (Q1/Q2) và hoàn thiện luận án.
+$$
+C = \{\text{office},\text{public\_transport},\text{shop},\text{amenity},\text{tourism},\text{leisure}\}
+$$
 
 ---
 
-## 6. HẠN CHẾ & HƯỚNG MỞ RỘNG
-* **Hạn chế:** Chưa xét đến biến động theo giờ (Time-of-day). Việc gộp hai chiều có thể làm mờ tính hướng tâm trong giờ cao điểm.
-* **Mở rộng:** Phát triển mô hình cho các khung giờ cao điểm sáng/chiều khi có dữ liệu tách hướng chi tiết hơn.
-* Phương pháp Entropy giả định OD là liên tục, cần hậu xử lý để đảm bảo số chuyến có ý nghĩa thực tế.
+## 2.3 Intervening Opportunities
+
+Theo nguyên lý **radiation model**, tổng opportunity nằm giữa origin $i$ và destination $j$:
+
+$$
+s_{ij} =
+\sum_{k \ne i,j : d_{ik} < d_{ij}} D_k
+$$
+
+---
+
+## 2.4 Radiation Interaction Function
+
+Score tương tác giữa $i$ và $j$:
+
+$$
+A_{ij} =
+\frac{O_i D_j}
+{(O_i + s_{ij})(O_i + D_j + s_{ij})}
+$$
+
+Trong đó
+
+- $O_i$ là origin mass  
+- $D_j$ là destination attractiveness  
+- $s_{ij}$ là intervening opportunities  
+
+---
+
+# 3. Distance-Bin Probability Calibration
+
+Meta mobility dataset cung cấp phân bố khoảng cách di chuyển:
+
+$$
+p_1 = P(d < 1 \text{ km})
+$$
+
+$$
+p_2 = P(1 \le d < 10 \text{ km})
+$$
+
+$$
+p_3 = 1 - p_1 - p_2
+$$
+
+Define bin indicator:
+
+$$
+\delta_{ij}^{(k)} =
+\begin{cases}
+1 & d_{ij} \in bin_k \\
+0 & otherwise
+\end{cases}
+$$
+
+Tổng interaction score trong mỗi bin:
+
+$$
+S_k =
+\sum_i \sum_j
+A_{ij} \delta_{ij}^{(k)}
+$$
+
+---
+
+# 4. Trip Probability
+
+Xác suất di chuyển từ $i$ đến $j$:
+
+$$
+Pr_{ij}
+=
+\sum_{k=1}^{3}
+\delta_{ij}^{(k)}
+\frac{A_{ij}}{S_k}
+p_k
+$$
+
+Công thức này đảm bảo:
+
+$$
+\sum_{i,j} Pr_{ij} = 1
+$$
+
+và đồng thời khớp với **distance distribution từ Facebook mobility data**.
+
+---
+
+# 5. Expected OD Flow
+
+Giả sử tổng số trips trong hệ thống là $T$.
+
+OD flow được sinh ra bởi mô hình:
+
+$$
+\hat{T}_{ij} =
+T \cdot Pr_{ij}
+$$
+
+---
+
+# 6. Flow Normalization
+
+Tổng flows:
+
+$$
+T^{gen} =
+\sum_i \sum_j \hat{T}_{ij}
+$$
+
+Normalized flow:
+
+$$
+\tilde{T}_{ij} =
+\frac{\hat{T}_{ij}}{T^{gen}}
+$$
+
+---
+
+# 7. Ground Truth Normalization
+
+Giả sử ground truth OD matrix là $G_{ij}$.
+
+Tổng trips:
+
+$$
+T^{GT} =
+\sum_{i,j} G_{ij}
+$$
+
+Normalized matrix:
+
+$$
+\tilde{G}_{ij} =
+\frac{G_{ij}}{T^{GT}}
+$$
+
+---
+
+# 8. Evaluation Metric: Common Part of Commuters (CPC)
+
+Độ tương đồng giữa OD dự đoán và ground truth:
+
+$$
+CPC =
+\frac{
+2\sum_{i,j}
+\min(\hat{T}_{ij}, G_{ij})
+}{
+\sum_{i,j} \hat{T}_{ij}
++
+\sum_{i,j} G_{ij}
+}
+$$
+
+Nếu dùng normalized matrices:
+
+$$
+CPC =
+\sum_{i,j}
+\min(\tilde{T}_{ij}, \tilde{G}_{ij})
+$$
+
+---
+
+# 9. Model Interpretation
+
+Mô hình kết hợp ba nguồn thông tin:
+
+### Urban Opportunity Structure
+
+$$
+D_j
+$$
+
+→ derived from **OSM POIs**
+
+---
+
+### Spatial Opportunity Competition
+
+$$
+s_{ij}
+$$
+
+→ **intervening opportunities**
+
+---
+
+### Empirical Mobility Pattern
+
+$$
+p_k
+$$
+
+→ **Meta mobility distance distribution**
+
+---
+
+Do đó mô hình có thể **sinh OD matrix ngay cả khi không có dữ liệu khảo sát OD trực tiếp**.
