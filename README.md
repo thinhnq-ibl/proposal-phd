@@ -20,6 +20,7 @@ Các biến quan sát:
 | $w_c$ | trọng số của POI loại $c$ |
 | $p_k$ | tỷ lệ trips trong distance bin $k$ (Meta mobility data) |
 | $T$ | tổng số trips trong hệ thống |
+| Pr_{ij} | xác suất di chuyển từ zone $i$ đến zone $j$ |
 
 Distance bins:
 
