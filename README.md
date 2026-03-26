@@ -142,21 +142,13 @@ Pr_{ij} =
 p_k
 $$
 
-Công thức này đảm bảo:
-
-$$
-\sum_{i,j} Pr_{ij} = 1
-$$
-
-và đồng thời khớp với **distance distribution từ Facebook mobility data**.
-
 ---
 
 # 5. Expected OD Flow
 
-Giả sử tổng số trips trong hệ thống là $T$.
+Giả sử tổng số trips trong hệ thống xuất phát từ $i$ là $T$.
 
-OD flow được sinh ra bởi mô hình:
+OD flow được sinh ra từ $i$ đến $j$ bởi mô hình:
 
 $$
 \hat{T}_{ij} =
