@@ -55,7 +55,7 @@ $$
 Trong đó tập POI categories:
 
 $$
-C = \{\text{office},\text{public\_transport},\text{shop},\text{amenity},\text{tourism},\text{leisure}\}
+C = \{\text{office},\text{public\-transport},\text{shop},\text{amenity},\text{tourism},\text{leisure}\}
 $$
 
 ---
@@ -66,7 +66,13 @@ Theo nguyên lý **radiation model**, tổng opportunity nằm giữa origin $i$
 
 $$
 s_{ij} =
-\sum_{k \ne i,j : d_{ik} < d_{ij}} D_k
+\sum_{d_{ik} < d_{ij}} D_k
+$$
+
+Với điều kiện: 
+
+$$ 
+k \ne i,j 
 $$
 
 ---
@@ -126,12 +132,10 @@ $$
 ---
 
 # 4. Trip Probability
-
 Xác suất di chuyển từ $i$ đến $j$:
 
 $$
-Pr_{ij}
-=
+Pr_{ij} =
 \sum_{k=1}^{3}
 \delta_{ij}^{(k)}
 \frac{A_{ij}}{S_k}
